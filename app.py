@@ -1,127 +1,188 @@
-# movie_recommender_streamlit.py
-
 import streamlit as st
 import pickle
-import pandas as pd
 import requests
+import pandas as pd
+import numpy as np
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import os
 
-# --- Load preprocessed data ---
-movies = pickle.load(open('model/movie_list.pkl', 'rb'))
-similarity = pickle.load(open('model/similarity.pkl', 'rb'))
-movies = movies.reset_index(drop=True)
+# Configuration
+st.set_page_config(
+    page_title="Movie Recommender",
+    page_icon="🎬",
+    layout="wide"
+)
 
-# --- TMDB API key ---
-API_KEY = "0d4416864237a443599eb466486f9763"
-
-# --- Function to fetch poster ---
-def fetch_poster(movie_id):
-    url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={API_KEY}&language=en-US"
+@st.cache_data
+def load_movies():
+    """Load movie list"""
     try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
+        movies = pickle.load(open('model/movie_list.pkl', 'rb'))
+        return pd.DataFrame(movies)
+    except Exception as e:
+        st.error(f"Error loading movie list: {e}")
+        return None
+
+@st.cache_data
+def generate_similarity_matrix():
+    """Generate similarity matrix from movie data"""
+    st.info("🔄 Generating movie similarity matrix... This may take a few moments.")
+    
+    try:
+        # Load movie data
+        movies_df = pd.read_csv('model/tmdb_5000_movies.csv')
+        
+        # Simple feature engineering using overview and genres
+        movies_df['overview'] = movies_df['overview'].fillna('')
+        movies_df['genres'] = movies_df['genres'].fillna('')
+        
+        # Combine features into tags
+        movies_df['tags'] = movies_df['overview'] + ' ' + movies_df['genres']
+        
+        # Create similarity matrix
+        with st.spinner('Creating movie vectors...'):
+            cv = CountVectorizer(max_features=3000, stop_words='english', lowercase=True)
+            vectors = cv.fit_transform(movies_df['tags']).toarray()
+        
+        with st.spinner('Calculating movie similarities...'):
+            similarity = cosine_similarity(vectors)
+        
+        st.success("✅ Similarity matrix generated successfully!")
+        return similarity
+        
+    except Exception as e:
+        st.error(f"Error generating similarity matrix: {e}")
+        return None
+
+def fetch_poster(movie_id):
+    """Fetch movie poster from TMDB API"""
+    api_key = "8265bd1679663a7ea12ac168da84d2e8"
+    try:
+        url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={api_key}&language=en-US"
+        response = requests.get(url, timeout=5)
         data = response.json()
-        poster_path = data.get("poster_path")
+        poster_path = data.get('poster_path')
         if poster_path:
-            return f"https://image.tmdb.org/t/p/w500{poster_path}"
-        else:
-            return "https://via.placeholder.com/500x750?text=No+Poster"
-    except requests.exceptions.ConnectionError:
-        return "https://via.placeholder.com/500x750?text=Offline"
-    except requests.exceptions.Timeout:
-        return "https://via.placeholder.com/500x750?text=Timeout"
-    except Exception:
-        return "https://via.placeholder.com/500x750?text=Error"
+            return f"https://image.tmdb.org/t/p/w500/{poster_path}"
+    except:
+        pass
+    return "https://via.placeholder.com/500x750/cccccc/666666?text=No+Poster"
 
-# --- Recommendation function ---
-def recommend(movie_title):
-    if movie_title not in movies['title'].values:
-        return []
+def recommend(movie, movies_df, similarity):
+    """Get movie recommendations"""
+    try:
+        # Find movie index
+        movie_matches = movies_df[movies_df['title'] == movie]
+        if movie_matches.empty:
+            return [], []
+            
+        index = movie_matches.index[0]
+        distances = similarity[index]
+        movies_list = sorted(list(enumerate(distances)), reverse=True, key=lambda x: x[1])[1:6]
+        
+        recommended_movie_names = []
+        recommended_movie_posters = []
+        
+        for i, score in movies_list:
+            movie_title = movies_df.iloc[i]['title']
+            movie_id = movies_df.iloc[i]['movie_id'] if 'movie_id' in movies_df.columns else movies_df.iloc[i].get('id', 0)
+            
+            recommended_movie_names.append(movie_title)
+            recommended_movie_posters.append(fetch_poster(movie_id))
+            
+        return recommended_movie_names, recommended_movie_posters
+        
+    except Exception as e:
+        st.error(f"Error generating recommendations: {e}")
+        return [], []
+
+def main():
+    # Header
+    st.title('🎬 Movie Recommender System')
+    st.markdown("*Discover movies similar to your favorites!*")
     
-    idx = movies[movies['title'] == movie_title].index[0]
-    distances = similarity[idx]
+    # Load movie data
+    with st.spinner('Loading movie database...'):
+        movies_df = load_movies()
     
-    movie_indices = sorted(
-        list(enumerate(distances)),
-        reverse=True,
-        key=lambda x: x[1]
-    )[1:6]  # top 5 excluding itself
+    if movies_df is None:
+        st.error("❌ Could not load movie database. Please check your files.")
+        st.stop()
     
-    recommendations = []
-    for i in movie_indices:
-        movie_id = movies.iloc[i[0]]["id"]
-        recommendations.append({
-            "title": movies.iloc[i[0]]["title"],
-            "poster": fetch_poster(movie_id)
-        })
+    st.success(f"✅ Loaded {len(movies_df)} movies")
     
-    return recommendations
-
-# --- Streamlit UI ---
-st.set_page_config(page_title="Movie Recommender", page_icon="🎬", layout="wide")
-
-# Custom CSS (for dark theme + gradient effects + hover animation)
-st.markdown("""
-    <style>
-    body {
-        background-color: #000;
-        color: #fff;
-    }
-    .main {
-        background: linear-gradient(135deg, #0f0f0f, #1a1a1a);
-        padding: 20px;
-        border-radius: 15px;
-    }
-    h1, h2, h3 {
-        text-align: center;
-        font-weight: bold;
-        background: linear-gradient(90deg, red, orange, yellow, lime, cyan, blue, violet);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-    .stButton>button {
-        background: linear-gradient(135deg, #ff4b5c, #ffcc00, #33ccff);
-        color: white;
-        border: none;
-        border-radius: 10px;
-        padding: 10px 20px;
-        font-size: 16px;
-        transition: 0.3s;
-    }
-    .stButton>button:hover {
-        transform: scale(1.05);
-        filter: brightness(1.2);
-    }
-    .movie-card {
-        transition: transform 0.3s ease, box-shadow 0.3s;
-    }
-    .movie-card:hover {
-        transform: translateY(-10px) scale(1.05);
-        box-shadow: 0 8px 25px rgba(255,255,255,0.3);
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-st.title("🎬 Movie Recommender System")
-st.write("<h3>✨ Get top 5 similar movies with posters!</h3>", unsafe_allow_html=True)
-
-# Movie selection
-selected_movie = st.selectbox("Choose a movie:", movies['title'].values)
-
-if st.button("🔍 Recommend"):
-    recommendations = recommend(selected_movie)
+    # Generate similarity matrix (cached)
+    with st.spinner('Setting up recommendation engine...'):
+        similarity = generate_similarity_matrix()
     
-    if recommendations:
-        cols = st.columns(5)
-        for idx, rec in enumerate(recommendations):
-            with cols[idx]:
-                st.markdown(
-                    f"""
-                    <div class="movie-card">
-                        <img src="{rec['poster']}" style="border-radius:12px; width:100%; height:300px; object-fit:cover;">
-                        <p style="text-align:center; font-weight:bold; margin-top:8px;">⭐ {rec['title']}</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
+    if similarity is None:
+        st.error("❌ Could not create recommendation engine.")
+        st.stop()
+    
+    st.success("✅ Recommendation engine ready!")
+    
+    # Main interface
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        st.subheader('🎯 Select a Movie')
+        
+        # Movie selection
+        selected_movie_name = st.selectbox(
+            'Choose a movie you like:',
+            movies_df['title'].values,
+            help="Select any movie to get 5 similar recommendations"
+        )
+        
+        if selected_movie_name:
+            st.write(f"**Selected:** {selected_movie_name}")
+    
+    with col2:
+        st.subheader('⚙️ Settings')
+        show_posters = st.checkbox('Show movie posters', value=True)
+        st.info("💡 Posters are fetched from TMDB API")
+    
+    # Get recommendations button
+    if st.button('🔍 Get Recommendations', type="primary", use_container_width=True):
+        if selected_movie_name:
+            with st.spinner('Finding similar movies...'):
+                recommended_movie_names, recommended_movie_posters = recommend(
+                    selected_movie_name, movies_df, similarity
                 )
-    else:
-        st.error("❌ No recommendations found.")
+            
+            if recommended_movie_names:
+                st.subheader(f'🎬 Movies Similar to "{selected_movie_name}"')
+                
+                if show_posters:
+                    # Display with posters
+                    cols = st.columns(5)
+                    for i, (movie, poster) in enumerate(zip(recommended_movie_names, recommended_movie_posters)):
+                        with cols[i]:
+                            st.image(poster, use_column_width=True)
+                            st.write(f"**{movie}**")
+                else:
+                    # Display as list
+                    for i, movie in enumerate(recommended_movie_names, 1):
+                        st.write(f"**{i}.** {movie}")
+            else:
+                st.error("❌ Could not generate recommendations. Please try another movie.")
+    
+    # Information section
+    with st.expander("ℹ️ How it works"):
+        st.markdown("""
+        This movie recommender uses **content-based filtering**:
+        
+        1. **Feature Extraction**: Movie overviews and genres are converted to numerical vectors
+        2. **Similarity Calculation**: Cosine similarity is calculated between all movies
+        3. **Recommendation**: Movies with highest similarity scores are recommended
+        
+        **Tech Stack**: Streamlit, scikit-learn, pandas, TMDB API
+        """)
+    
+    # Footer
+    st.markdown("---")
+    st.markdown("*Built with ❤️ using Streamlit • Movie data from TMDB*")
+
+if __name__ == "__main__":
+    main()
