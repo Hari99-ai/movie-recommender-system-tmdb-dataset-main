@@ -27,7 +27,7 @@ def load_movies():
 @st.cache_data
 def generate_similarity_matrix():
     """Generate similarity matrix from movie data"""
-    st.info("🔄 Generating movie similarity matrix... This may take a few moments.")
+    st.info("Generating movie similarity matrix... This may take a few moments.")
     
     try:
         # Load movie data
@@ -48,7 +48,7 @@ def generate_similarity_matrix():
         with st.spinner('Calculating movie similarities...'):
             similarity = cosine_similarity(vectors)
         
-        st.success("✅ Similarity matrix generated successfully!")
+        st.success("Similarity matrix generated successfully!")
         return similarity
         
     except Exception as e:
@@ -99,34 +99,34 @@ def recommend(movie, movies_df, similarity):
 
 def main():
     # Header
-    st.title('🎬 Movie Recommender System')
-    st.markdown("*Discover movies similar to your favorites!*")
+    st.title('Movie Recommender System')
+    st.markdown("*Find movies similar to your favorites*")
     
     # Load movie data
     with st.spinner('Loading movie database...'):
         movies_df = load_movies()
     
     if movies_df is None:
-        st.error("❌ Could not load movie database. Please check your files.")
+        st.error("Could not load movie database. Please check your files.")
         st.stop()
     
-    st.success(f"✅ Loaded {len(movies_df)} movies")
+    st.success(f"Loaded {len(movies_df)} movies")
     
     # Generate similarity matrix (cached)
     with st.spinner('Setting up recommendation engine...'):
         similarity = generate_similarity_matrix()
     
     if similarity is None:
-        st.error("❌ Could not create recommendation engine.")
+        st.error("Could not create recommendation engine.")
         st.stop()
     
-    st.success("✅ Recommendation engine ready!")
+    st.success("Recommendation engine ready!")
     
     # Main interface
     col1, col2 = st.columns([3, 1])
     
     with col1:
-        st.subheader('🎯 Select a Movie')
+        st.subheader('Select a Movie')
         
         # Movie selection
         selected_movie_name = st.selectbox(
@@ -139,12 +139,11 @@ def main():
             st.write(f"**Selected:** {selected_movie_name}")
     
     with col2:
-        st.subheader('⚙️ Settings')
+        st.subheader('Settings')
         show_posters = st.checkbox('Show movie posters', value=True)
-        st.info("💡 Posters are fetched from TMDB API")
     
     # Get recommendations button
-    if st.button('🔍 Get Recommendations', type="primary", use_container_width=True):
+    if st.button('Get Recommendations', type="primary", use_container_width=True):
         if selected_movie_name:
             with st.spinner('Finding similar movies...'):
                 recommended_movie_names, recommended_movie_posters = recommend(
@@ -152,7 +151,7 @@ def main():
                 )
             
             if recommended_movie_names:
-                st.subheader(f'🎬 Movies Similar to "{selected_movie_name}"')
+                st.subheader(f'Movies Similar to "{selected_movie_name}"')
                 
                 if show_posters:
                     # Display with posters
@@ -166,23 +165,11 @@ def main():
                     for i, movie in enumerate(recommended_movie_names, 1):
                         st.write(f"**{i}.** {movie}")
             else:
-                st.error("❌ Could not generate recommendations. Please try another movie.")
-    
-    # Information section
-    with st.expander("ℹ️ How it works"):
-        st.markdown("""
-        This movie recommender uses **content-based filtering**:
-        
-        1. **Feature Extraction**: Movie overviews and genres are converted to numerical vectors
-        2. **Similarity Calculation**: Cosine similarity is calculated between all movies
-        3. **Recommendation**: Movies with highest similarity scores are recommended
-        
-        **Tech Stack**: Streamlit, scikit-learn, pandas, TMDB API
-        """)
+                st.error("Could not generate recommendations. Please try another movie.")
     
     # Footer
     st.markdown("---")
-    st.markdown("*Built with ❤️ using Streamlit • Movie data from TMDB*")
+    st.markdown("*Created by Hari Om*")
 
 if __name__ == "__main__":
     main()
