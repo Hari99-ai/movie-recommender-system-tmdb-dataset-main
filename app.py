@@ -6,16 +6,21 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import os
 
-# Configuration
+# -------------------------------
+# App Configuration
+# -------------------------------
 st.set_page_config(
     page_title="Movie Recommender",
     page_icon="🎬",
     layout="wide"
 )
 
+# -------------------------------
+# Data Loading
+# -------------------------------
 @st.cache_data
 def load_movies():
-    """Load movie list"""
+    """Load movie list from pickle file"""
     try:
         with open('model/movie_list.pkl', 'rb') as f:
             movies = pickle.load(f)
@@ -45,9 +50,12 @@ def generate_similarity_matrix():
         st.error(f"Error generating similarity matrix: {e}")
         return None
 
+# -------------------------------
+# Helper Functions
+# -------------------------------
 def fetch_poster(movie_id):
     """Fetch movie poster from TMDB API"""
-    api_key = os.getenv("TMDB_API_KEY", "8265bd1679663a7ea12ac168da84d2e8")  # fallback if env not set
+    api_key = os.getenv("TMDB_API_KEY", "8265bd1679663a7ea12ac168da84d2e8")  # Fallback API key
     try:
         url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={api_key}&language=en-US"
         response = requests.get(url, timeout=5)
@@ -60,7 +68,7 @@ def fetch_poster(movie_id):
     return "https://via.placeholder.com/500x750/cccccc/666666?text=No+Poster"
 
 def recommend(movie, movies_df, similarity):
-    """Get movie recommendations"""
+    """Get top 5 movie recommendations"""
     try:
         movie_matches = movies_df[movies_df['title'] == movie]
         if movie_matches.empty:
@@ -90,10 +98,13 @@ def recommend(movie, movies_df, similarity):
         st.error(f"Error generating recommendations: {e}")
         return [], []
 
+# -------------------------------
+# Main App
+# -------------------------------
 def main():
     # Header
     st.title('🎬 Movie Recommender System')
-    st.markdown("*Discover movies similar to your favorites!*")
+    st.markdown("*Find movies similar to your favorites*")
 
     # Load movie data
     with st.spinner('Loading movie database...'):
@@ -115,7 +126,7 @@ def main():
 
     st.success("✅ Recommendation engine ready!")
 
-    # Main interface
+    # Interface
     col1, col2 = st.columns([3, 1])
 
     with col1:
@@ -125,14 +136,12 @@ def main():
             movies_df['title'].values,
             help="Select any movie to get 5 similar recommendations"
         )
-        if selected_movie_name:
-            st.write(f"**Selected:** {selected_movie_name}")
 
     with col2:
         st.subheader('⚙️ Settings')
         show_posters = st.checkbox('Show movie posters', value=True)
 
-    # Get recommendations button
+    # Get recommendations
     if st.button('🔍 Get Recommendations', type="primary", use_container_width=True):
         if selected_movie_name:
             with st.spinner('Finding similar movies...'):
@@ -155,21 +164,10 @@ def main():
             else:
                 st.error("❌ Could not generate recommendations. Please try another movie.")
 
-    # Information section
-    with st.expander("ℹ️ How it works"):
-        st.markdown("""
-        This movie recommender uses **content-based filtering**:
-
-        1. Movie overviews and genres are combined into text
-        2. CountVectorizer converts text into numerical vectors
-        3. Cosine similarity is used to find the most similar movies
-
-        **Tech Stack**: Streamlit, scikit-learn, pandas, TMDB API
-        """)
-
     # Footer
     st.markdown("---")
-    st.markdown("**Created by ❤️ Hari Om**")
+    st.markdown("*Created by ❤️Hari Om*")
 
 if __name__ == "__main__":
     main()
+
