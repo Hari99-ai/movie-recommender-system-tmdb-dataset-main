@@ -159,7 +159,7 @@ def main():
                     cols = st.columns(5)
                     for i, (movie, poster) in enumerate(zip(recommended_movie_names, recommended_movie_posters)):
                         with cols[i]:
-                            st.image(poster, use_column_width=True)
+                            st.image(poster, use_container_width=True)
                             st.write(f"**{movie}**")
                 else:
                     # Display as list
