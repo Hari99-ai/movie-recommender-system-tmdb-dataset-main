@@ -203,7 +203,7 @@ def main():
                 st.error("❌ Could not generate recommendations. Please try another movie.")
 
     # Footer
-    st.markdown('<div class="footer">Created with ❤️ by Hari Om</div>', unsafe_allow_html=True)
+    st.markdown('<div class="footer">Created by ❤️ Hari Om</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
